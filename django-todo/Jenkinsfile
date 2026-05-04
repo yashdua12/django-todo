@@ -1,0 +1,105 @@
+pipeline {
+    agent any
+
+    environment {
+        GITHUB_REPO = "https://github.com/yashdua12/django-todo.git"
+        GIT_BRANCH = "main"
+
+        IMAGE_NAME = "yashdua112/django-todo"
+        CONTAINER_NAME = "django-todo-container"
+        APP_PORT = "8000"
+    }
+
+    stages {
+
+        stage('Clean Workspace') {
+            steps {
+                deleteDir()
+            }
+        }
+
+        stage('Fetch Code from GitHub') {
+            steps {
+                git branch: "${GIT_BRANCH}", url: "${GITHUB_REPO}"
+            }
+        }
+
+        stage('Show Files') {
+            steps {
+                sh 'pwd'
+                sh 'ls -la'
+                sh 'ls -la django-todo'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                dir('django-todo') {
+                    sh 'docker build -t $IMAGE_NAME:$BUILD_NUMBER .'
+                    sh 'docker tag $IMAGE_NAME:$BUILD_NUMBER $IMAGE_NAME:latest'
+                }
+            }
+        }
+
+        stage('Django Check') {
+            steps {
+                sh 'docker run --rm $IMAGE_NAME:$BUILD_NUMBER python manage.py check'
+            }
+        }
+
+        stage('Docker Hub Login') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                }
+            }
+        }
+
+        stage('Push Image to Docker Hub') {
+            steps {
+                sh 'docker push $IMAGE_NAME:$BUILD_NUMBER'
+                sh 'docker push $IMAGE_NAME:latest'
+            }
+        }
+
+        stage('Stop Old Container') {
+            steps {
+                sh 'docker rm -f $CONTAINER_NAME || true'
+            }
+        }
+
+        stage('Run New Container') {
+            steps {
+                sh '''
+                docker run -d \
+                --name $CONTAINER_NAME \
+                --restart unless-stopped \
+                -p $APP_PORT:8000 \
+                $IMAGE_NAME:latest
+                '''
+            }
+        }
+
+        stage('Verify Container') {
+            steps {
+                sh 'docker ps'
+                sh 'sleep 5'
+                sh 'curl -I http://54.161.20.233:$APP_PORT/todos || true'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline completed successfully. Docker image pushed and container is running.'
+        }
+
+        failure {
+            echo 'Pipeline failed. Check Jenkins console output.'
+        }
+    }
+}

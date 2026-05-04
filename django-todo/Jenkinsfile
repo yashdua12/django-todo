@@ -5,7 +5,7 @@ pipeline {
         GITHUB_REPO = "https://github.com/yashdua12/django-todo.git"
         GIT_BRANCH = "main"
 
-        IMAGE_NAME = "yashdua112/django-todo"
+        IMAGE_NAME = "your-repo-name/django-todo"
         CONTAINER_NAME = "django-todo-container"
         APP_PORT = "8000"
     }
@@ -88,7 +88,7 @@ pipeline {
             steps {
                 sh 'docker ps'
                 sh 'sleep 5'
-                sh 'curl -I http://54.161.20.233:$APP_PORT/todos || true'
+                sh 'curl -I http://ec2-ip-public:$APP_PORT/todos || true'
             }
         }
     }
